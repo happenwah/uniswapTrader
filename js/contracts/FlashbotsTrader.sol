@@ -8,9 +8,8 @@ interface IWETH is IERC20 {
   function withdraw(uint) external;
 }
 
-/// @notice Flashbots Trader, allows for gas-efficient swaps with 0 slippage
+/// @notice Flashbots Trader, gas-efficient UniswapV2 swaps with 0 slippage
 /// @dev Designed specifically for Flashbots integration, DO NOT USE VIA MEMPOOL!
-///      Works on UniswapV2 and UniswapV3
 ///      Can be used as a template for a MEV searcher,
 ///      or permissioned contract that avoids mempool sandwiches
 contract FlashbotsTrader {

@@ -14,9 +14,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 
-	trader "github.com/happenwah/uniswapTrader/go/Trader"
+	contracts "github.com/happenwah/uniswapTrader/go/tradeExecution/contractBindings"
 
 	jsoniter "github.com/json-iterator/go"
 
@@ -33,7 +32,6 @@ import (
 
 // EOA struct
 type Zk struct {
-	Mu          sync.Mutex
 	D           *ecdsa.PrivateKey
 	FromAddress common.Address
 }
@@ -122,7 +120,7 @@ func GetPairAddress(contractAddress, token, otherToken string) (common.Address, 
 
 // Checks token balance of a given address
 func CheckTokenBalance(tokenAddress, address common.Address, client *ethclient.Client) (error, *big.Int) {
-	token, err := NewIERC20(tokenAddress, client)
+	token, err := contracts.NewIERC20(tokenAddress, client)
 	if err != nil {
 		fmt.Printf("Failed to instantiate IERC20 of: %v\n", tokenAddress)
 		return err, nil
@@ -171,9 +169,9 @@ func (zk *Zk) SetWalletFromMnemonic(walletAddressIdx int) {
 }
 
 // Loads instance of FlashbotsTrader contract at its deployed address
-func SetContractTrader(client *ethclient.Client, _address string) *trader.FlashbotsTrader {
+func SetContractTrader(client *ethclient.Client, _address string) *contracts.FlashbotsTrader {
 	address := common.HexToAddress(_address)
-	instance, err := trader.NewFlashbotsTrader(address, client)
+	instance, err := contracts.NewFlashbotsTrader(address, client)
 
 	if err != nil {
 		log.Fatal(err)
@@ -186,11 +184,10 @@ func SetContractTrader(client *ethclient.Client, _address string) *trader.Flashb
 // Simple example of submitting a WETH -> Token Buy,
 // followed by a Token -> WETH sell.
 // Works for both Flashbots and mempool, as dictated by isMempool bool.
-func ExecuteDEXBuyAndSell(isMempool bool,
-	zk *Zk,
+func ExecuteDEXBuyAndSell(zk *Zk,
 	chainID *big.Int,
 	client *ethclient.Client,
-	instance *trader.DEXTrader,
+	instance *contracts.FlashbotsTrader,
 	flashbotsRelay string,
 	WETHAddress,
 	tokenAddress,
@@ -334,7 +331,7 @@ func GetOurRawTx(zk *Zk,
 	client *ethclient.Client,
 	nonce uint64,
 	token0 common.Address,
-	instance *trader.DEXTrader,
+	instance *contracts.FlashbotsTrader,
 	gasPrice *big.Int,
 	inputToken,
 	poolAddress common.Address,
@@ -525,7 +522,7 @@ type FlashbotsTradeReturn struct {
 func ConvertETHtoWETH(zk *Zk,
 	client *ethclient.Client,
 	chainID *big.Int,
-	instance *trader.DEXTrader,
+	instance *contracts.FlashbotsTrader,
 	WETHAddress string,
 	ETHAmount_wei,
 	gasPrice *big.Int) (*types.Transaction, error) {
@@ -567,7 +564,7 @@ func ConvertETHtoWETH(zk *Zk,
 func Kill(zk *Zk,
 	client *ethclient.Client,
 	chainID *big.Int,
-	instance *trader.DEXTrader,
+	instance *contracts.FlashbotsTrader,
 	gasPrice *big.Int) (*types.Transaction, error) {
 	d := zk.D
 	auth, err := bind.NewKeyedTransactorWithChainID(d, chainID)

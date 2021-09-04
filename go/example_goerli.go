@@ -10,7 +10,7 @@ import (
 
 	tradeExec "github.com/happenwah/uniswapTrader/go/tradeExecution"
 
-	trader "github.com/happenwah/uniswapTrader/go/Trader"
+	contracts "github.com/happenwah/uniswapTrader/go/tradeExecution/contractBindings"
 )
 
 var (
@@ -29,10 +29,15 @@ const (
 
 var (
 	g_zk       *tradeExec.Zk
-	g_instance *trader.DEXTrader
+	g_instance *contracts.FlashbotsTrader
 )
 
-func TestGoerliBuyAndSell(zk *tradeExec.Zk, chainID *big.Int, client *ethclient.Client, instance *trader.DEXTrader, isMempool bool, gasPrice *big.Int, g_client *ethclient.Client) {
+func TestGoerliBuyAndSell(zk *tradeExec.Zk,
+	chainID *big.Int,
+	client *ethclient.Client,
+	instance *contracts.FlashbotsTrader,
+	gasPrice *big.Int,
+	g_client *ethclient.Client) {
 	// Token: Goerli gDAI
 	token := "0x9c69cf4e75099bfdcc9e5d97446b1b289881aade"
 	token0, poolAddress, _ := tradeExec.GetPairAddress(g_uniV2Router, token, g_WETHGoerli)
@@ -42,7 +47,7 @@ func TestGoerliBuyAndSell(zk *tradeExec.Zk, chainID *big.Int, client *ethclient.
 	WETHAmountSell_wei := big.NewInt(109)
 	minerAmount_wei := big.NewInt(11239578123888112)
 
-	tradeExec.ExecuteDEXBuyAndSell(isMempool, zk, chainID, client, instance, g_flashbotsRelay,
+	tradeExec.ExecuteDEXBuyAndSell(zk, chainID, client, instance, g_flashbotsRelay,
 		common.HexToAddress(g_WETHAddress), common.HexToAddress(token),
 		poolAddress, token0, WETHAmountBuy_wei, TokenAmountBuy, WETHAmountSell_wei,
 		gasPrice, minerAmount_wei, g_nBundles)
@@ -63,10 +68,8 @@ func main() {
 	g_zk = tradeExec.Init(walletAddressIdx)
 	g_instance = tradeExec.SetContractTrader(g_client, g_contractAddress)
 	gasPrice := big.NewInt(10e9)
-	// Set to true to submit via mempool
-	// Set to false to submit to Flashbots Goerli relay
-	isMempool := false
-	TestGoerliBuyAndSell(g_zk, g_GOERLI, g_client, g_instance, isMempool, gasPrice, g_client)
+
+	TestGoerliBuyAndSell(g_zk, g_GOERLI, g_client, g_instance, gasPrice, g_client)
 
 	// CONVERT 1 ETH INTO WETH
 	//tradeExec.ConvertETHtoWETH(g_zk, g_client, g_GOERLI, g_instance, g_WETHAddress, big.NewInt(1e18), gasPrice)
