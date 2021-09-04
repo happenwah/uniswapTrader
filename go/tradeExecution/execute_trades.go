@@ -21,7 +21,6 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	common "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -31,8 +30,6 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
 )
-
-var g_abi abi.ABI
 
 // EOA struct
 type Zk struct {
@@ -62,7 +59,6 @@ func GetPairAddress(contractAddress, token, otherToken string) (common.Address, 
 	}
 
 	if factoryffString == "" || initCodeString == "" {
-		fmt.Printf("GetPairAdddress: failed set factoryffString or initCodeString")
 		return common.Address{}, common.Address{}, errors.New("GetPairAdddress: failed set factoryffString or initCodeString")
 	}
 
@@ -172,20 +168,18 @@ func (zk *Zk) SetWalletFromMnemonic(walletAddressIdx int) {
 	zk.FromAddress = account.Address
 
 	fmt.Printf("Parsed wallet address with index %v: %v\n", walletAddressIdx, zk.FromAddress)
-
-	fmt.Println("Wallet is loaded")
 }
 
-// Loads instance of DEXTrader contract at its deployed address
-func SetContractTrader(client *ethclient.Client, _address string) *trader.DEXTrader {
+// Loads instance of FlashbotsTrader contract at its deployed address
+func SetContractTrader(client *ethclient.Client, _address string) *trader.FlashbotsTrader {
 	address := common.HexToAddress(_address)
-	instance, err := trader.NewDEXTrader(address, client)
+	instance, err := trader.NewFlashbotsTrader(address, client)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("DEXTrader has been loaded from address: %v\n", address)
+	fmt.Printf("FlashbotsTrader has been loaded from address: %v\n", address)
 	return instance
 }
 
@@ -207,7 +201,7 @@ func ExecuteDEXBuyAndSell(isMempool bool,
 	WETHAmountSell_wei,
 	gasPrice,
 	minerAmount *big.Int,
-	nBundles uint64) (DEXTradeReturn, error) {
+	nBundles uint64) (FlashbotsTradeReturn, error) {
 
 	var txs = make(map[*big.Int][2]common.Hash)
 	// Get latest known block
@@ -215,7 +209,7 @@ func ExecuteDEXBuyAndSell(isMempool bool,
 
 	if err != nil {
 		fmt.Printf("Failed to retrieve block number with error: %v\n", err)
-		out := DEXTradeReturn{
+		out := FlashbotsTradeReturn{
 			Executed:      false,
 			BlockDeadline: nil,
 		}
@@ -230,7 +224,7 @@ func ExecuteDEXBuyAndSell(isMempool bool,
 
 	if err != nil {
 		fmt.Printf("Failed to retrieve pending nonce with error: %v\n", err)
-		out := DEXTradeReturn{
+		out := FlashbotsTradeReturn{
 			Executed:      false,
 			BlockDeadline: nil,
 		}
@@ -239,81 +233,11 @@ func ExecuteDEXBuyAndSell(isMempool bool,
 
 	// Submit nBundles copies of the same bundle to Flashbots,
 	// one for each target blockNumberToExecute
-	if !isMempool {
-		for blockToExecute := blockStart; blockToExecute <= blockDeadline; blockToExecute++ {
-			blockNumberToExecute := big.NewInt(int64(blockToExecute))
+	for blockToExecute := blockStart; blockToExecute <= blockDeadline; blockToExecute++ {
+		blockNumberToExecute := big.NewInt(int64(blockToExecute))
 
-			// Buy: WETH -> Token
-			txBuy, ourRawTxBuy, err := GetOurRawTx(false,
-				zk,
-				chainID,
-				client,
-				nonce,
-				token0,
-				instance,
-				gasPrice,
-				WETHAddress,
-				poolAddress,
-				big.NewInt(0), // We do not pay any miner bribe on the first tx
-				WETHAmountBuy_wei,
-				TokenAmountBuy,
-				blockNumberToExecute)
-
-			if err != nil {
-				fmt.Print(err)
-				out := DEXTradeReturn{
-					Executed:      false,
-					BlockDeadline: nil,
-				}
-				return out, err
-			}
-
-			// Sell: Token -> WETH
-			txSell, ourRawTxSell, err := GetOurRawTx(false,
-				zk,
-				chainID,
-				client,
-				nonce+1,
-				token0,
-				instance,
-				gasPrice,
-				tokenAddress,
-				poolAddress,
-				minerAmount,
-				new(big.Int).Sub(TokenAmountBuy, big.NewInt(1)),
-				WETHAmountSell_wei,
-				blockNumberToExecute)
-
-			bundle := []string{ourRawTxBuy, ourRawTxSell}
-
-			flashBotsResponse, err := SendFlashbotsBundle(zk, client, flashbotsRelay, bundle, blockNumberToExecute)
-			fmt.Printf("Flashbots Response: %v\n", flashBotsResponse)
-
-			if err != nil {
-				fmt.Printf("Failed to send bundle with error: %v\n", err)
-				out := DEXTradeReturn{
-					Executed:      false,
-					BlockDeadline: nil,
-				}
-				return out, err
-			}
-
-			fmt.Printf("BlockToExecute: %v || ourHashes: [%v, %v]\n", blockNumberToExecute, txBuy.Hash(), txSell.Hash())
-
-			txs[big.NewInt(int64(blockToExecute))] = [2]common.Hash{txBuy.Hash(), txSell.Hash()}
-		}
-
-		out := DEXTradeReturn{
-			Executed:      true,
-			Txs:           txs,
-			BlockDeadline: big.NewInt(int64(blockDeadline)),
-		}
-
-		return out, nil
-	} else { // Otherwise we submit to mempool
 		// Buy: WETH -> Token
-		txBuy, _, err := GetOurRawTx(true,
-			zk,
+		txBuy, ourRawTxBuy, err := GetOurRawTx(zk,
 			chainID,
 			client,
 			nonce,
@@ -325,11 +249,11 @@ func ExecuteDEXBuyAndSell(isMempool bool,
 			big.NewInt(0), // We do not pay any miner bribe on the first tx
 			WETHAmountBuy_wei,
 			TokenAmountBuy,
-			big.NewInt(0))
+			blockNumberToExecute)
 
 		if err != nil {
-			fmt.Println(err)
-			out := DEXTradeReturn{
+			fmt.Print(err)
+			out := FlashbotsTradeReturn{
 				Executed:      false,
 				BlockDeadline: nil,
 			}
@@ -337,8 +261,7 @@ func ExecuteDEXBuyAndSell(isMempool bool,
 		}
 
 		// Sell: Token -> WETH
-		txSell, _, err := GetOurRawTx(true,
-			zk,
+		txSell, ourRawTxSell, err := GetOurRawTx(zk,
 			chainID,
 			client,
 			nonce+1,
@@ -348,26 +271,49 @@ func ExecuteDEXBuyAndSell(isMempool bool,
 			tokenAddress,
 			poolAddress,
 			minerAmount,
-			TokenAmountBuy,
+			new(big.Int).Sub(TokenAmountBuy, big.NewInt(1)),
 			WETHAmountSell_wei,
-			big.NewInt(0))
+			blockNumberToExecute)
 
-		txs[big.NewInt(int64(blockStart))] = [2]common.Hash{txBuy.Hash(), txSell.Hash()}
+		bundle := []string{ourRawTxBuy, ourRawTxSell}
 
-		out := DEXTradeReturn{
-			Executed:      true,
-			Txs:           txs,
-			BlockDeadline: big.NewInt(int64(blockDeadline)),
+		flashBotsResponse, err := SendFlashbotsBundle(zk, client, flashbotsRelay, bundle, blockNumberToExecute)
+		fmt.Printf("Flashbots Response: %v\n", flashBotsResponse)
+
+		if err != nil {
+			fmt.Printf("Failed to send bundle with error: %v\n", err)
+			out := FlashbotsTradeReturn{
+				Executed:      false,
+				BlockDeadline: nil,
+			}
+			return out, err
 		}
 
-		return out, nil
+		fmt.Printf("BlockToExecute: %v || ourHashes: [%v, %v]\n", blockNumberToExecute, txBuy.Hash(), txSell.Hash())
 
+		txs[big.NewInt(int64(blockToExecute))] = [2]common.Hash{txBuy.Hash(), txSell.Hash()}
 	}
+
+	out := FlashbotsTradeReturn{
+		Executed:      true,
+		Txs:           txs,
+		BlockDeadline: big.NewInt(int64(blockDeadline)),
+	}
+
+	return out, nil
 }
 
 // Given a user's tx Hash, we use an RPC method to get its raw signed data
-func GetTargetRawTx(hash string) string {
-	req := fmt.Sprintf(`{"jsonrpc": "2.0", "id": 42, "method": "eth_getRawTransactionByHash", "params": ["%v"]}`, hash)
+func GetRawTx(hash string) string {
+	var hashArray []string
+	reqJson := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"id":      42,
+		"method":  "eth_getRawTransactionByHash",
+		"params":  append(hashArray, hash),
+	}
+	req, err := json.Marshal(reqJson)
+
 	jsonValue := []byte(req)
 	resp, err := http.Post("http://localhost:8545", "application/json", bytes.NewBuffer(jsonValue))
 
@@ -378,13 +324,12 @@ func GetTargetRawTx(hash string) string {
 	defer resp.Body.Close()
 
 	bodyBytes, _ := ioutil.ReadAll(resp.Body)
-	rawTxTarget := json.Get(bodyBytes, "result").ToString()
-	return rawTxTarget
+	rawTx := json.Get(bodyBytes, "result").ToString()
+	return rawTx
 }
 
-// Submit transactions using our EOA, either in mempool or Flashbots format
-func GetOurRawTx(isMempool bool,
-	zk *Zk,
+// Get our txHash and raw signed transaction
+func GetOurRawTx(zk *Zk,
 	chainID *big.Int,
 	client *ethclient.Client,
 	nonce uint64,
@@ -414,11 +359,7 @@ func GetOurRawTx(isMempool bool,
 	auth.GasPrice = gasPrice
 
 	//If Flashbots, we don't send to mempool
-	if !isMempool {
-		auth.NoSend = true
-	} else {
-		auth.NoSend = false
-	}
+	auth.NoSend = true
 
 	inputIsToken0 := (strings.ToLower(inputToken.String()) == strings.ToLower(token0.String()))
 
@@ -491,35 +432,33 @@ func GetOurRawTx(isMempool bool,
 		return &types.Transaction{}, "", errors.New("Failed to create a tx object in GetOurRawTx")
 	}
 
-	// If Flashbots, we return our raw signed tx
-	if !isMempool {
-		// We sign using our private key
-		// Note: we can use any other private key, this is just for relay stats purposes
-		ourSignedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), d)
+	// We sign using our private key
+	// Note: we can use any other private key, this is just for relay stats purposes
+	ourSignedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), d)
 
-		if err != nil {
-			return &types.Transaction{}, "", err
-		}
-
-		ourSignedTxRlp, err := rlp.EncodeToBytes(ourSignedTx)
-
-		if err != nil {
-			fmt.Printf("Failed to RLP encode transaction with error: %v\n", err)
-			return &types.Transaction{}, "", errors.New(fmt.Sprintf("%v\n", err))
-		}
-
-		ourRawTxHex := "0x" + hex.EncodeToString(ourSignedTxRlp)
-
-		return tx, ourRawTxHex, nil
+	if err != nil {
+		return &types.Transaction{}, "", err
 	}
 
-	return tx, "", nil
+	ourSignedTxRlp, err := rlp.EncodeToBytes(ourSignedTx)
+
+	if err != nil {
+		fmt.Printf("Failed to RLP encode transaction with error: %v\n", err)
+		return &types.Transaction{}, "", errors.New(fmt.Sprintf("%v\n", err))
+	}
+
+	ourRawTxHex := "0x" + hex.EncodeToString(ourSignedTxRlp)
+
+	return tx, ourRawTxHex, nil
 }
 
 // Sends bundle to Flashbots relay, targetting a specific blockNumber to execute
-func SendFlashbotsBundle(zk *Zk, client *ethclient.Client, flashbotsRelay string, bundle []string, blockNumberToExecute *big.Int) (string, error) {
+func SendFlashbotsBundle(zk *Zk,
+	client *ethclient.Client,
+	flashbotsRelay string,
+	bundle []string,
+	blockNumberToExecute *big.Int) (string, error) {
 	flashbotXHeader := "X-Flashbots-Signature"
-
 	blockNumberHex := fmt.Sprintf("0x%v", blockNumberToExecute.Text(16))
 
 	params := map[string]interface{}{
@@ -541,6 +480,7 @@ func SendFlashbotsBundle(zk *Zk, client *ethclient.Client, flashbotsRelay string
 
 	if err != nil {
 		fmt.Printf("Failed to create new Flashbots request with err: %v\n", err)
+		return "", err
 	}
 
 	headerValue, err := crypto.Sign(
@@ -561,7 +501,7 @@ func SendFlashbotsBundle(zk *Zk, client *ethclient.Client, flashbotsRelay string
 	resp, err := httpClient.Do(req)
 
 	if err != nil {
-		fmt.Printf("Failed to do Flashbots request in execute_trades: 348 with error: %v\n", err)
+		fmt.Printf("Failed to do Flashbots request with error: %v\n", err)
 		return "", err
 	}
 
@@ -574,7 +514,7 @@ func flashbotsHeader(signature []byte, privateKey *ecdsa.PrivateKey) string {
 		":" + hexutil.Encode(signature)
 }
 
-type DEXTradeReturn struct {
+type FlashbotsTradeReturn struct {
 	Executed      bool
 	Txs           map[*big.Int][2]common.Hash
 	BlockDeadline *big.Int
@@ -660,7 +600,6 @@ func Kill(zk *Zk,
 
 	fmt.Printf("Kill tx hash: %v\n", tx.Hash().Hex())
 	return tx, nil
-
 }
 
 func Init(walletAddressIdx int) *Zk {

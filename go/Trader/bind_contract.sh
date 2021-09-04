@@ -1,1 +1,1 @@
-abigen --sol ../js_flashbots/contracts/DEXTrader.sol --pkg trader --out trader.go
+abigen --sol ../js/contracts/FlashbotsTrader.sol --pkg trader --out trader.go
