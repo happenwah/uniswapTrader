@@ -10,6 +10,7 @@ This is meant to be useful as either:
 
 ## Some recommendations:
 
-- Whitelist tokens before trading on them! Many of them are either scams or Salmonellas, meaning that we do not always get what we expect as amountOut.
+- Whitelist tokens before trading on them! Many of them are either scams or Salmonellas, meaning that we do not always get what we expect as amountOut. See https://github.com/BitBaseBit/LessRekt for a starting point.
 - Always leave balance 1 after selling a token, in order to save gas every other time you trade in the future.
 - If you want to save gas, you can pay miner bribes in gasFee rather than ETH transfer to miner. But beware that in the case the block gets uncled, a miner may still take your reverting transaction and make you lose some ETH in gasFee.
+- Always do your homework and get hands on into coding! No one will give you the full bits of a successful MEV searcher bot for free.
