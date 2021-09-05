@@ -6,7 +6,7 @@ Designed with gas efficiency in mind, DO NOT USE VIA THE MEMPOOL!
 
 ## Note:
 
-I may still tidy up the code a bit more, or include some MEV related advice, but this repository is designed to be self-contained and specific.
+I may still tidy up the code and docs a bit more, but this repository is designed to be self-contained and specific.
 
 ## This repository may be useful as:
 - A building block for a MEV searcher (contract + go package to submit Flashbot compatible bundles).
