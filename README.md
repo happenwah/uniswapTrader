@@ -2,9 +2,9 @@
 
 How to place 0 slippage trades on UniswapV2 via Flashbots.
 
-Designed with gas efficiency in mind, DO NOT USE ON THE MEMPOOL!
+Designed with gas efficiency in mind, ## DO NOT USE VIA THE MEMPOOL!
 
-This is meant to be useful as either:
+## This repo can be useful as:
 - A building block for a MEV searcher (contract + go package to submit Flashbot compatible bundles).
 - A contract in which you hold your funds and use to trade with front-running protection.
 
